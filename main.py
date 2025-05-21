@@ -12,88 +12,111 @@ from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping, ReduceLRO
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.utils import to_categorical
 
-# Konfiguracja GPU
-physical_devices = tf.config.list_physical_devices('GPU')
-if len(physical_devices) > 0:
-    print(f"Znaleziono {len(physical_devices)} urządzeń GPU:")
-    for device in physical_devices:
-        print(f" - {device}")
-    # Konfiguracja GPU - pozwól TensorFlow na alokację pamięci dynamicznie
-    try:
-        for gpu in physical_devices:
-            tf.config.experimental.set_memory_growth(gpu, True)
-        print("Ustawiono dynamiczną alokację pamięci GPU")
-    except RuntimeError as e:
-        print(f"Błąd konfiguracji GPU: {e}")
-else:
-    print("UWAGA: Nie znaleziono urządzeń GPU. Model będzie trenowany na CPU, co może być znacznie wolniejsze.")
-
 # Stałe
 img_size = 64  # rozmiar obrazu po przeskalowaniu
 num_classes = 27  # 26 liter alfabetu + space
 
-def load_dataset_from_directory(train_dir, test_dir):
+# Mapowanie etykiet - definicja globalna dla spójności
+LABEL_MAP = {}
+for i, letter in enumerate('ABCDEFGHIJKLMNOPQRSTUVWXYZ'):
+    LABEL_MAP[letter] = i
+# Dodajemy specjalną wartość dla spacji (znak nr 26)
+LABEL_MAP['Space'] = 26
+
+# Lista nazw klas w odpowiedniej kolejności
+CLASS_NAMES = list('ABCDEFGHIJKLMNOPQRSTUVWXYZ') + ['Space']
+
+def prepare_data():
     """
-    Ładuje zbiór danych ASL z podanej struktury katalogów, gdzie
-    train_dir i test_dir zawierają podfoldery dla każdej klasy.
+    Przygotowuje dane treningowe, walidacyjne i testowe korzystając z ImageDataGenerator.
+
     """
-    # Mapowanie etykiet
-    label_map = {}
-    for i, letter in enumerate('ABCDEFGHIJKLMNOPQRSTUVWXYZ'):
-        label_map[letter] = i
+    # Ścieżki do zbiorów danych
+    dataset_path = 'ASL_Dataset'
+    train_dir = os.path.join(dataset_path, 'Train')
+    test_dir = os.path.join(dataset_path, 'Test')
     
-    # Dodajemy specjalną wartość dla spacji (znak nr 26)
-    label_map['space'] = 26
+    print("Przygotowanie generatorów danych...")
     
-    # Funkcja pomocnicza do wczytywania obrazów z danego katalogu
-    def load_images_from_dir(directory):
-        images = []
-        labels = []
+    # Generator z augmentacją dla zbioru treningowego (90% z Train)
+    train_datagen = ImageDataGenerator(
+        rescale=1./255,             # normalizacja wartości pikseli
+        rotation_range=10,          # losowe obroty o kąt ±10 stopni
+        width_shift_range=0.1,      # losowe przesunięcia w poziomie o 10%
+        height_shift_range=0.1,     # losowe przesunięcia w pionie o 10%
+        zoom_range=0.1,             # losowe przybliżenia o 10%
+        brightness_range=[0.9, 1.1], # losowe zmiany jasności o ±10%
+        horizontal_flip=True,       # dodane odbicie lustrzane, aby model rozpoznawał gesty prawej ręki
+        validation_split=0.1,       # 10% danych treningowych używamy jako walidacyjne
+        fill_mode='nearest'         # metoda wypełniania nowych pikseli
+    )
+    
+    # Generator dla zbioru testowego (tylko skalowanie)
+    test_datagen = ImageDataGenerator(
+        rescale=1./255
+    )
+    
+    # Tworzenie generatora treningowego
+    train_generator = train_datagen.flow_from_directory(
+        train_dir,
+        target_size=(img_size, img_size),
+        batch_size=32,
+        class_mode='categorical',
+        subset='training',
+        shuffle=True
+    )
+    
+    # Tworzenie generatora walidacyjnego
+    validation_generator = train_datagen.flow_from_directory(
+        train_dir,
+        target_size=(img_size, img_size),
+        batch_size=32,
+        class_mode='categorical',
+        subset='validation',
+        shuffle=True
+    )
+    
+    # Tworzenie generatora testowego
+    test_generator = test_datagen.flow_from_directory(
+        test_dir,
+        target_size=(img_size, img_size),
+        batch_size=32,
+        class_mode='categorical',
+        shuffle=False  # Bez mieszania dla testu, aby zachować właściwą kolejność dla ewaluacji
+    )
+    
+    print(f"Przygotowano {train_generator.samples} próbek treningowych")
+    print(f"Przygotowano {validation_generator.samples} próbek walidacyjnych")
+    print(f"Przygotowano {test_generator.samples} próbek testowych")
+    
+    # Wyświetlenie przykładowych obrazów po augmentacji
+    def show_augmented_images(generator, num_images=5):
+        """Wyświetla przykładowe augmentowane obrazy z generatora."""
+        plt.figure(figsize=(15, 3))
         
-        # Dla każdego podfolderu (klasy) w katalogu
-        for folder in os.listdir(directory):
-            folder_path = os.path.join(directory, folder)
-            if os.path.isdir(folder_path):
-                label = label_map.get(folder)
-                if label is not None:  # tylko jeśli folder jest w mapowaniu
-                    print(f"Wczytywanie danych z katalogu: {folder_path}")
-                    for img_file in os.listdir(folder_path):
-                        if img_file.endswith('.jpg') or img_file.endswith('.png'):
-                            img_path = os.path.join(folder_path, img_file)
-                            try:
-                                # Wczytanie i przeskalowanie obrazu
-                                img = cv2.imread(img_path)
-                                img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)  # Konwersja z BGR na RGB
-                                img = cv2.resize(img, (img_size, img_size))
-                                
-                                # Normalizacja wartości pikseli do przedziału [0, 1]
-                                img = img / 255.0
-                                
-                                # Dodanie do listy
-                                images.append(img)
-                                labels.append(label)
-                            except Exception as e:
-                                print(f"Błąd podczas przetwarzania {img_path}: {e}")
+        # Pobierz jedną partię danych
+        images, labels = next(generator)
         
-        # Konwersja list na tablice numpy
-        X = np.array(images)
-        y = np.array(labels)
+        for i in range(min(num_images, len(images))):
+            plt.subplot(1, num_images, i+1)
+            # Konwersja z [0,1] do [0,255] dla wizualizacji
+            img = images[i] * 255
+            img = img.astype(np.uint8)
+            plt.imshow(img)
+            label_idx = np.argmax(labels[i])
+            class_name = CLASS_NAMES[label_idx] if label_idx < len(CLASS_NAMES) else f"Unknown({label_idx})"
+            plt.title(f"Class: {class_name}")
+            plt.axis('off')
         
-        # Konwersja etykiet na format one-hot encoding
-        y = to_categorical(y, num_classes)
-        
-        return X, y
+        plt.tight_layout()
+        plt.savefig('augmented_samples.png')
+        plt.show()
     
-    # Wczytanie danych treningowych i testowych
-    print("Wczytywanie danych treningowych...")
-    X_train, y_train = load_images_from_dir(train_dir)
-    print(f"Załadowano {X_train.shape[0]} obrazów treningowych")
+    # Wyświetl przykładowe obrazy po augmentacji
+    print("Przykładowe obrazy po augmentacji:")
+    show_augmented_images(train_generator)
     
-    print("Wczytywanie danych testowych...")
-    X_test, y_test = load_images_from_dir(test_dir)
-    print(f"Załadowano {X_test.shape[0]} obrazów testowych")
-    
-    return X_train, y_train, X_test, y_test
+    return train_generator, validation_generator, test_generator
 
 def create_model():
     """
@@ -148,47 +171,7 @@ def create_model():
     
     return model
 
-def prepare_data_generators(X_train, y_train, X_val=None, y_val=None):
-    """
-    Przygotowuje generatory danych z augmentacją dla zbioru treningowego.
-    Jeśli nie podano zbioru walidacyjnego, zostanie on wygenerowany z treningowego.
-    """
-    # Generator z augmentacją dla zbioru treningowego
-    train_datagen = ImageDataGenerator(
-        rotation_range=10,      # losowe obroty o kąt ±10 stopni
-        width_shift_range=0.1,  # losowe przesunięcia w poziomie o 10%
-        height_shift_range=0.1, # losowe przesunięcia w pionie o 10%
-        zoom_range=0.1,         # losowe przybliżenia o 10%
-        brightness_range=[0.9, 1.1],  # losowe zmiany jasności o ±10%
-        horizontal_flip=False,  # bez odbić w poziomie (zmieniłyby znaczenie niektórych znaków)
-        fill_mode='nearest',    # metoda wypełniania nowych pikseli
-        validation_split=0.15 if X_val is None else None  # podział na zbiór walidacyjny, jeśli nie podano X_val
-    )
-    
-    if X_val is None:
-        # Tworzenie generatorów treningowego i walidacyjnego z podziałem wewnętrznym
-        train_generator = train_datagen.flow(
-            X_train, y_train, 
-            batch_size=32,
-            subset='training'
-        )
-        
-        val_generator = train_datagen.flow(
-            X_train, y_train, 
-            batch_size=32,
-            subset='validation'
-        )
-    else:
-        # Użycie podanego zbioru walidacyjnego
-        train_generator = train_datagen.flow(X_train, y_train, batch_size=32)
-        
-        # Generator dla zbioru walidacyjnego (bez augmentacji)
-        val_datagen = ImageDataGenerator()
-        val_generator = val_datagen.flow(X_val, y_val, batch_size=32)
-    
-    return train_generator, val_generator
-
-def train_model(model, train_generator, val_generator, epochs=30):
+def train_model(model, train_generator, validation_generator, epochs=30):
     """
     Trenuje model CNN.
     """
@@ -219,49 +202,60 @@ def train_model(model, train_generator, val_generator, epochs=30):
     callbacks = [checkpoint, early_stopping, reduce_lr]
     
     # Trenowanie modelu
-    steps_per_epoch = len(train_generator)
-    validation_steps = len(val_generator)
-    
     history = model.fit(
         train_generator,
-        steps_per_epoch=steps_per_epoch,
         epochs=epochs,
-        validation_data=val_generator,
-        validation_steps=validation_steps,
+        validation_data=validation_generator,
         callbacks=callbacks
     )
     
     return history
 
-def evaluate_model(model, X_test, y_test):
+def evaluate_model(model, test_generator):
     """
     Ocenia model na zbiorze testowym.
     """
     # Ocena modelu
-    test_loss, test_accuracy = model.evaluate(X_test, y_test, verbose=1)
+    test_loss, test_accuracy = model.evaluate(test_generator)
     print(f'Test accuracy: {test_accuracy:.4f}')
     
     # Predykcje
-    y_pred = model.predict(X_test)
-    y_pred_classes = np.argmax(y_pred, axis=1)
-    y_true_classes = np.argmax(y_test, axis=1)
+    y_pred_prob = model.predict(test_generator)
+    y_pred_classes = np.argmax(y_pred_prob, axis=1)
+    
+    # Prawdziwe etykiety
+    # Uwzględnienie, że generator zwraca dane w partiach
+    y_true_classes = test_generator.classes
+    
+    # Sprawdzenie, które klasy są obecne w danych testowych
+    present_class_indices = sorted(np.unique(y_true_classes))
+    print(f"Liczba unikalnych klas w zbiorze testowym: {len(present_class_indices)}")
+    print(f"Indeksy obecnych klas: {present_class_indices}")
+    
+    # Tworzenie nazw klas dla obecnych indeksów
+    present_class_names = [CLASS_NAMES[i] for i in present_class_indices]
+    print(f"Obecne klasy: {present_class_names}")
     
     # Raport klasyfikacji
-    class_names = list('ABCDEFGHIJKLMNOPQRSTUVWXYZ') + ['space']
-    report = classification_report(y_true_classes, y_pred_classes, target_names=class_names)
+    report = classification_report(
+        y_true_classes, 
+        y_pred_classes, 
+        labels=present_class_indices,
+        target_names=present_class_names
+    )
     print(report)
     
     # Macierz pomyłek
-    conf_matrix = confusion_matrix(y_true_classes, y_pred_classes)
+    conf_matrix = confusion_matrix(y_true_classes, y_pred_classes, labels=present_class_indices)
     
     # Wizualizacja macierzy pomyłek
     plt.figure(figsize=(20, 20))
     plt.imshow(conf_matrix, cmap=plt.cm.Blues)
     plt.title('Macierz pomyłek')
     plt.colorbar()
-    tick_marks = np.arange(len(class_names))
-    plt.xticks(tick_marks, class_names, rotation=45)
-    plt.yticks(tick_marks, class_names)
+    tick_marks = np.arange(len(present_class_names))
+    plt.xticks(tick_marks, present_class_names, rotation=45)
+    plt.yticks(tick_marks, present_class_names)
     
     # Dodanie wartości liczbowych do macierzy
     thresh = conf_matrix.max() / 2.
@@ -289,46 +283,47 @@ def plot_training_history(history):
     plt.subplot(1, 2, 1)
     plt.plot(history.history['accuracy'], label='Training accuracy')
     plt.plot(history.history['val_accuracy'], label='Validation accuracy')
-    plt.title('Training and Validation Accuracy')
-    plt.xlabel('Epoch')
-    plt.ylabel('Accuracy')
+    plt.title('Dokładność w trakcie treningu i walidacji')
+    plt.xlabel('Epoka')
+    plt.ylabel('Dokładność')
     plt.legend()
     
     # Wykres straty
     plt.subplot(1, 2, 2)
     plt.plot(history.history['loss'], label='Training loss')
     plt.plot(history.history['val_loss'], label='Validation loss')
-    plt.title('Training and Validation Loss')
-    plt.xlabel('Epoch')
-    plt.ylabel('Loss')
+    plt.title('Strata w trakcie treningu i walidacji')
+    plt.xlabel('Epoka')
+    plt.ylabel('Strata')
     plt.legend()
     
     plt.tight_layout()
     plt.savefig('training_history.png')
     plt.show()
 
-def visualize_predictions(model, X_test, y_test, num_samples=10):
+def visualize_predictions(model, test_generator, num_samples=10):
     """
     Wizualizuje przykładowe predykcje modelu.
     """
-    # Losowy wybór próbek
-    indices = np.random.choice(len(X_test), num_samples, replace=False)
-    X_samples = X_test[indices]
-    y_true = np.argmax(y_test[indices], axis=1)
+    # Pobierz próbki z generatora testowego
+    test_generator.reset()  # Zresetowanie generatora do początku
+    
+    # Pobierz jedną partię danych
+    images, labels = next(test_generator)
     
     # Predykcje
-    y_pred = model.predict(X_samples)
+    y_pred = model.predict(images)
     y_pred_classes = np.argmax(y_pred, axis=1)
-    
-    # Mapowanie indeksów na litery
-    class_names = list('ABCDEFGHIJKLMNOPQRSTUVWXYZ') + ['space']
+    y_true_classes = np.argmax(labels, axis=1)
     
     # Wizualizacja
     plt.figure(figsize=(20, 10))
-    for i in range(num_samples):
+    for i in range(min(num_samples, len(images))):
         plt.subplot(2, 5, i+1)
-        plt.imshow(X_samples[i])
-        plt.title(f'True: {class_names[y_true[i]]}\nPred: {class_names[y_pred_classes[i]]}')
+        plt.imshow(images[i])
+        true_label = CLASS_NAMES[y_true_classes[i]] if y_true_classes[i] < len(CLASS_NAMES) else f"Unknown({y_true_classes[i]})"
+        pred_label = CLASS_NAMES[y_pred_classes[i]] if y_pred_classes[i] < len(CLASS_NAMES) else f"Unknown({y_pred_classes[i]})"
+        plt.title(f'True: {true_label}\nPred: {pred_label}')
         plt.axis('off')
     
     plt.tight_layout()
@@ -336,17 +331,11 @@ def visualize_predictions(model, X_test, y_test, num_samples=10):
     plt.show()
 
 def main():
-    # Ścieżka do zbioru danych
-    dataset_path = 'ASL_Dataset'  # Katalog zawierający foldery Train i Test
-    train_dir = os.path.join(dataset_path, 'Train')
-    test_dir = os.path.join(dataset_path, 'Test')
-    
-    print("Ładowanie danych...")
-    X_train, y_train, X_test, y_test = load_dataset_from_directory(train_dir, test_dir)
-    print(f"Załadowano dane treningowe: {X_train.shape} i testowe: {X_test.shape}")
-    
-    # Przygotowanie generatorów danych (bez jawnego zbioru walidacyjnego - zostanie wygenerowany wewnętrznie)
-    train_generator, val_generator = prepare_data_generators(X_train, y_train)
+    """
+    Główna funkcja programu.
+    """
+    print("Przygotowanie danych...")
+    train_generator, validation_generator, test_generator = prepare_data()
     
     # Tworzenie modelu
     print("Tworzenie modelu CNN...")
@@ -355,17 +344,17 @@ def main():
     
     # Trenowanie modelu
     print("Rozpoczęcie treningu...")
-    history = train_model(model, train_generator, val_generator)
+    history = train_model(model, train_generator, validation_generator)
     
     # Wizualizacja historii treningu
     plot_training_history(history)
     
     # Ocena modelu
     print("Ocena modelu na zbiorze testowym...")
-    test_accuracy, report, conf_matrix = evaluate_model(model, X_test, y_test)
+    test_accuracy, report, conf_matrix = evaluate_model(model, test_generator)
     
     # Wizualizacja przykładowych predykcji
-    visualize_predictions(model, X_test, y_test)
+    visualize_predictions(model, test_generator)
     
     # Zapisanie modelu
     model.save('asl_recognition_model.h5')

@@ -1,1 +1,8 @@
 ASL_Dataset/
+
+# Ignoruj pliki w katalogu źródłowym (tam gdzie main.py)
+*.h5
+*.png
+
+# Wyjątek dla folderu Model_Archive
+!Model_Archive/**
