@@ -171,7 +171,7 @@ def create_model():
     
     return model
 
-def train_model(model, train_generator, validation_generator, epochs=30):
+def train_model(model, train_generator, validation_generator, epochs=15):
     """
     Trenuje model CNN.
     """
@@ -186,7 +186,7 @@ def train_model(model, train_generator, validation_generator, epochs=30):
     
     early_stopping = EarlyStopping(
         monitor='val_loss',
-        patience=5,
+        patience=3,
         verbose=1,
         restore_best_weights=True
     )
