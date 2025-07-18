@@ -3,271 +3,203 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rozpoznawanie ASL w czasie rzeczywistym</title>
+    <title>ASL Sign Recognition</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
         body {
-            font-family: 'Arial', sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
             padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
         }
-
+        
         .container {
-            background: white;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
             border-radius: 20px;
             padding: 30px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
-            max-width: 900px;
-            width: 100%;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
         }
-
+        
         h1 {
             text-align: center;
-            color: #333;
             margin-bottom: 30px;
             font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
         }
-
-        .camera-section {
+        
+        .video-container {
             display: flex;
-            flex-direction: column;
-            align-items: center;
+            justify-content: center;
             margin-bottom: 30px;
         }
-
+        
         #video {
-            width: 100%;
-            max-width: 640px;
-            height: 480px;
+            width: 400px;
+            height: 300px;
+            border: 3px solid rgba(255, 255, 255, 0.5);
             border-radius: 15px;
-            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
-            background: #f0f0f0;
-            object-fit: cover;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
         }
-
+        
         .controls {
             display: flex;
-            gap: 15px;
-            margin-top: 20px;
-            flex-wrap: wrap;
             justify-content: center;
+            gap: 15px;
+            margin-bottom: 30px;
         }
-
+        
         button {
-            padding: 12px 24px;
+            padding: 12px 25px;
+            font-size: 16px;
             border: none;
             border-radius: 25px;
-            font-size: 16px;
             cursor: pointer;
             transition: all 0.3s ease;
-            font-weight: bold;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
         }
-
-        #startBtn {
-            background: #4CAF50;
+        
+        .btn-primary {
+            background: linear-gradient(45deg, #4CAF50, #45a049);
             color: white;
         }
-
-        #startBtn:hover {
-            background: #45a049;
-            transform: translateY(-2px);
-        }
-
-        #stopBtn {
-            background: #f44336;
+        
+        .btn-secondary {
+            background: linear-gradient(45deg, #2196F3, #1976D2);
             color: white;
         }
-
-        #stopBtn:hover {
-            background: #da190b;
-            transform: translateY(-2px);
-        }
-
-        #toggleBtn {
-            background: #2196F3;
+        
+        .btn-danger {
+            background: linear-gradient(45deg, #f44336, #d32f2f);
             color: white;
         }
-
-        #toggleBtn:hover {
-            background: #0b7dda;
+        
+        button:hover {
             transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
         }
-
-        .results-section {
-            background: #f8f9fa;
+        
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .results {
+            background: rgba(255, 255, 255, 0.1);
             border-radius: 15px;
             padding: 25px;
             margin-top: 20px;
-        }
-
-        .current-prediction {
             text-align: center;
-            margin-bottom: 25px;
         }
-
-        .predicted-letter {
-            font-size: 4em;
+        
+        .prediction {
+            font-size: 3em;
             font-weight: bold;
-            color: #2196F3;
-            margin-bottom: 10px;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+            margin: 15px 0;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
         }
-
+        
         .confidence {
             font-size: 1.2em;
-            color: #666;
+            margin: 10px 0;
+            opacity: 0.9;
         }
-
+        
         .top-predictions {
-            margin-top: 20px;
+            display: flex;
+            justify-content: space-around;
+            margin: 20px 0;
+            flex-wrap: wrap;
         }
-
-        .top-predictions h3 {
-            color: #333;
-            margin-bottom: 15px;
-            text-align: center;
-        }
-
+        
         .prediction-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 10px 15px;
-            margin-bottom: 8px;
-            background: white;
-            border-radius: 10px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-        }
-
-        .prediction-letter {
-            font-size: 1.5em;
-            font-weight: bold;
-            color: #2196F3;
-        }
-
-        .prediction-confidence {
-            color: #666;
-            font-size: 0.9em;
-        }
-
-        .sentence-display {
-            background: white;
-            border-radius: 10px;
-            padding: 20px;
-            margin-top: 20px;
-            min-height: 60px;
-            border: 2px solid #e0e0e0;
-        }
-
-        .sentence-display h3 {
-            color: #333;
-            margin-bottom: 10px;
-        }
-
-        .sentence-text {
-            font-size: 1.3em;
-            color: #444;
-            line-height: 1.5;
-            word-wrap: break-word;
-        }
-
-        .sentence-controls {
-            display: flex;
-            gap: 10px;
-            margin-top: 15px;
-            justify-content: center;
-        }
-
-        .sentence-controls button {
-            padding: 8px 16px;
-            font-size: 14px;
-        }
-
-        #clearBtn {
-            background: #ff9800;
-            color: white;
-        }
-
-        #clearBtn:hover {
-            background: #e68900;
-        }
-
-        .debug-info {
-            background: #f0f0f0;
+            background: rgba(255, 255, 255, 0.2);
             border-radius: 10px;
             padding: 15px;
-            margin-top: 15px;
-            font-family: monospace;
-            font-size: 0.9em;
-            max-height: 200px;
-            overflow-y: auto;
+            margin: 5px;
+            min-width: 120px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
         }
-
-        .roi-overlay {
-            position: absolute;
-            border: 2px solid #ff0000;
-            background: rgba(255, 0, 0, 0.1);
-            pointer-events: none;
-            display: none;
+        
+        .prediction-item h3 {
+            margin: 0 0 10px 0;
+            font-size: 1.5em;
         }
-
+        
+        .prediction-item p {
+            margin: 0;
+            opacity: 0.8;
+        }
+        
         .status {
             text-align: center;
-            margin-top: 15px;
-            padding: 10px;
+            margin: 15px 0;
+            font-size: 1.1em;
+        }
+        
+        .status.success {
+            color: #4CAF50;
+        }
+        
+        .status.error {
+            color: #f44336;
+        }
+        
+        .status.warning {
+            color: #ff9800;
+        }
+        
+        .debug-info {
+            background: rgba(0, 0, 0, 0.3);
             border-radius: 10px;
-            font-weight: bold;
-        }
-
-        .status.active {
-            background: #d4edda;
-            color: #155724;
-        }
-
-        .status.inactive {
-            background: #f8d7da;
-            color: #721c24;
-        }
-
-        .loading {
+            padding: 15px;
+            margin: 20px 0;
+            font-family: monospace;
+            font-size: 0.9em;
             display: none;
-            text-align: center;
-            color: #666;
-            margin-top: 10px;
         }
-
-        .spinner {
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #3498db;
-            border-radius: 50%;
-            width: 20px;
-            height: 20px;
-            animation: spin 1s linear infinite;
-            display: inline-block;
+        
+        .settings {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        
+        .settings h3 {
+            margin-top: 0;
+        }
+        
+        .setting-item {
+            display: flex;
+            align-items: center;
+            margin: 10px 0;
+        }
+        
+        .setting-item label {
+            margin-right: 10px;
+            min-width: 150px;
+        }
+        
+        input[type="checkbox"] {
             margin-right: 10px;
         }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+        
+        .canvas-container {
+            display: none;
         }
-
+        
         @media (max-width: 768px) {
             .container {
                 padding: 20px;
             }
             
-            h1 {
-                font-size: 2em;
+            #video {
+                width: 100%;
+                max-width: 350px;
+                height: 250px;
             }
             
             .controls {
@@ -275,60 +207,61 @@
                 align-items: center;
             }
             
-            button {
-                width: 200px;
+            .top-predictions {
+                flex-direction: column;
+                align-items: center;
             }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🤟 Rozpoznawanie ASL</h1>
+        <h1>🤟 ASL Sign Recognition</h1>
         
-        <div class="camera-section">
-            <div style="position: relative; display: inline-block;">
-                <video id="video" autoplay muted></video>
-                <div class="roi-overlay" id="roiOverlay"></div>
+        <div class="video-container">
+            <video id="video" autoplay playsinline></video>
+        </div>
+        
+        <div class="controls">
+            <button id="startBtn" class="btn-primary">📹 Start Camera</button>
+            <button id="captureBtn" class="btn-secondary" disabled>📸 Capture & Predict</button>
+            <button id="stopBtn" class="btn-danger" disabled>⏹️ Stop Camera</button>
+        </div>
+        
+        <div class="settings">
+            <h3>⚙️ Settings</h3>
+            <div class="setting-item">
+                <label>
+                    <input type="checkbox" id="useRoi"> Use ROI Processing
+                </label>
             </div>
-            <canvas id="canvas" style="display: none;"></canvas>
-            
-            <div class="controls">
-                <button id="startBtn">📹 Uruchom kamerę</button>
-                <button id="stopBtn" style="display: none;">⏹️ Zatrzymaj kamerę</button>
-                <button id="toggleBtn" style="display: none;">⏸️ Zatrzymaj rozpoznawanie</button>
-                <button id="debugBtn" style="display: none;">🔍 Debug</button>
+            <div class="setting-item">
+                <label>
+                    <input type="checkbox" id="autoPredict"> Auto Predict (every 2s)
+                </label>
+            </div>
+            <div class="setting-item">
+                <label>
+                    <input type="checkbox" id="showDebug"> Show Debug Info
+                </label>
             </div>
         </div>
-
-        <div class="results-section">
-            <div class="current-prediction">
-                <div class="predicted-letter" id="predictedLetter">-</div>
-                <div class="confidence" id="confidence">Pewność: 0%</div>
-            </div>
-
-            <div class="loading" id="loading">
-                <div class="spinner"></div>
-                Rozpoznawanie...
-            </div>
-
-            <div class="top-predictions">
-                <h3>Top 3 predykcje:</h3>
-                <div id="topPredictions"></div>
-            </div>
-
-            <div class="sentence-display">
-                <h3>Twoja wiadomość:</h3>
-                <div class="sentence-text" id="sentenceText"></div>
-                <div class="sentence-controls">
-                    <button id="clearBtn">🗑️ Wyczyść</button>
-                </div>
-            </div>
-
-            <div class="debug-info" id="debugInfo" style="display: none;"></div>
+        
+        <div class="status" id="status">Ready to start...</div>
+        
+        <div class="results" id="results" style="display: none;">
+            <div class="prediction" id="prediction">?</div>
+            <div class="confidence" id="confidence">Confidence: 0%</div>
+            <div class="top-predictions" id="topPredictions"></div>
         </div>
-
-        <div class="status inactive" id="status">
-            Kamera nieaktywna
+        
+        <div class="debug-info" id="debugInfo">
+            <h4>Debug Information:</h4>
+            <pre id="debugContent"></pre>
+        </div>
+        
+        <div class="canvas-container">
+            <canvas id="canvas"></canvas>
         </div>
     </div>
 
@@ -337,255 +270,204 @@
         let canvas = document.getElementById('canvas');
         let ctx = canvas.getContext('2d');
         let stream = null;
-        let isRecognizing = false;
-        let recognitionInterval = null;
-        let sentence = '';
-        let debugMode = false;
-        let lastPrediction = null;
-        let stabilityCounter = 0;
-        const STABILITY_THRESHOLD = 3; // Ile razy z rzędu ta sama litera musi się pojawić
+        let isCapturing = false;
+        let autoPredictInterval = null;
 
         const startBtn = document.getElementById('startBtn');
+        const captureBtn = document.getElementById('captureBtn');
         const stopBtn = document.getElementById('stopBtn');
-        const toggleBtn = document.getElementById('toggleBtn');
-        const debugBtn = document.getElementById('debugBtn');
-        const status = document.getElementById('status');
-        const loading = document.getElementById('loading');
-        const predictedLetter = document.getElementById('predictedLetter');
-        const confidence = document.getElementById('confidence');
-        const topPredictions = document.getElementById('topPredictions');
-        const sentenceText = document.getElementById('sentenceText');
-        const clearBtn = document.getElementById('clearBtn');
-        const debugInfo = document.getElementById('debugInfo');
-        const roiOverlay = document.getElementById('roiOverlay');
+        const statusDiv = document.getElementById('status');
+        const resultsDiv = document.getElementById('results');
+        const predictionDiv = document.getElementById('prediction');
+        const confidenceDiv = document.getElementById('confidence');
+        const topPredictionsDiv = document.getElementById('topPredictions');
+        const debugInfoDiv = document.getElementById('debugInfo');
+        const debugContentDiv = document.getElementById('debugContent');
+        
+        const useRoiCheckbox = document.getElementById('useRoi');
+        const autoPredictCheckbox = document.getElementById('autoPredict');
+        const showDebugCheckbox = document.getElementById('showDebug');
 
-        // Uruchom kamerę
-        startBtn.addEventListener('click', async () => {
+        // Event listeners
+        startBtn.addEventListener('click', startCamera);
+        captureBtn.addEventListener('click', captureAndPredict);
+        stopBtn.addEventListener('click', stopCamera);
+        
+        autoPredictCheckbox.addEventListener('change', toggleAutoPredict);
+        showDebugCheckbox.addEventListener('change', toggleDebugInfo);
+
+        async function startCamera() {
             try {
-                stream = await navigator.mediaDevices.getUserMedia({ 
+                updateStatus('Starting camera...', 'warning');
+                
+                stream = await navigator.mediaDevices.getUserMedia({
                     video: { 
-                        width: 640, 
-                        height: 480,
+                        width: { ideal: 640 }, 
+                        height: { ideal: 480 },
                         facingMode: 'user'
-                    } 
+                    }
                 });
+                
                 video.srcObject = stream;
                 
-                startBtn.style.display = 'none';
-                stopBtn.style.display = 'inline-block';
-                toggleBtn.style.display = 'inline-block';
-                debugBtn.style.display = 'inline-block';
-                
-                status.textContent = 'Kamera aktywna - rozpoznawanie wyłączone';
-                status.className = 'status active';
-                
-                // Ustaw rozmiar canvas
-                canvas.width = 640;
-                canvas.height = 480;
-                
-                // Pokaż ROI overlay
-                updateROIOverlay();
+                video.onloadedmetadata = () => {
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    
+                    startBtn.disabled = true;
+                    captureBtn.disabled = false;
+                    stopBtn.disabled = false;
+                    
+                    updateStatus('Camera started! Ready to capture.', 'success');
+                };
                 
             } catch (err) {
-                console.error('Błąd dostępu do kamery:', err);
-                alert('Nie można uzyskać dostępu do kamery. Upewnij się, że przeglądarka ma odpowiednie uprawnienia.');
+                console.error('Error accessing camera:', err);
+                updateStatus('Error accessing camera: ' + err.message, 'error');
             }
-        });
+        }
 
-        // Zatrzymaj kamerę
-        stopBtn.addEventListener('click', () => {
+        function stopCamera() {
             if (stream) {
                 stream.getTracks().forEach(track => track.stop());
                 stream = null;
             }
             
-            stopRecognition();
-            
-            startBtn.style.display = 'inline-block';
-            stopBtn.style.display = 'none';
-            toggleBtn.style.display = 'none';
-            debugBtn.style.display = 'none';
-            
-            status.textContent = 'Kamera nieaktywna';
-            status.className = 'status inactive';
-            
-            // Ukryj ROI overlay
-            roiOverlay.style.display = 'none';
-            debugInfo.style.display = 'none';
-            
-            // Resetuj wyniki
-            predictedLetter.textContent = '-';
-            confidence.textContent = 'Pewność: 0%';
-            topPredictions.innerHTML = '';
-        });
-
-        // Debug mode toggle
-        debugBtn.addEventListener('click', () => {
-            debugMode = !debugMode;
-            debugBtn.textContent = debugMode ? '🔍 Debug ON' : '🔍 Debug OFF';
-            debugInfo.style.display = debugMode ? 'block' : 'none';
-            roiOverlay.style.display = debugMode ? 'block' : 'none';
-        });
-
-        // Aktualizuj ROI overlay
-        function updateROIOverlay() {
-            const videoRect = video.getBoundingClientRect();
-            const containerRect = video.parentElement.getBoundingClientRect();
-            
-            // Oblicz pozycję ROI (centralny kwadrat)
-            const roiSize = Math.min(videoRect.width, videoRect.height) * 0.5;
-            const centerX = videoRect.width / 2;
-            const centerY = videoRect.height / 2;
-            
-            roiOverlay.style.left = `${centerX - roiSize/2}px`;
-            roiOverlay.style.top = `${centerY - roiSize/2}px`;
-            roiOverlay.style.width = `${roiSize}px`;
-            roiOverlay.style.height = `${roiSize}px`;
-        }
-
-        // Aktualizuj ROI przy zmianie rozmiaru okna
-        window.addEventListener('resize', updateROIOverlay);
-
-        // Przełącz rozpoznawanie
-        toggleBtn.addEventListener('click', () => {
-            if (isRecognizing) {
-                stopRecognition();
-            } else {
-                startRecognition();
-            }
-        });
-
-        // Uruchom rozpoznawanie
-        function startRecognition() {
-            isRecognizing = true;
-            toggleBtn.textContent = '⏸️ Zatrzymaj rozpoznawanie';
-            status.textContent = 'Rozpoznawanie aktywne';
-            
-            recognitionInterval = setInterval(() => {
-                captureAndPredict();
-            }, 1000); // Zwiększono interwał do 1 sekundy dla lepszej stabilności
-        }
-
-        // Zatrzymaj rozpoznawanie
-        function stopRecognition() {
-            isRecognizing = false;
-            toggleBtn.textContent = '▶️ Rozpocznij rozpoznawanie';
-            status.textContent = 'Kamera aktywna - rozpoznawanie wyłączone';
-            
-            if (recognitionInterval) {
-                clearInterval(recognitionInterval);
-                recognitionInterval = null;
+            if (autoPredictInterval) {
+                clearInterval(autoPredictInterval);
+                autoPredictInterval = null;
             }
             
-            loading.style.display = 'none';
+            startBtn.disabled = false;
+            captureBtn.disabled = true;
+            stopBtn.disabled = true;
+            
+            updateStatus('Camera stopped.', 'warning');
+            hideResults();
         }
 
-        // Przechwyć obraz i wykonaj predykcję
-        async function captureAndPredict() {
-            if (!video.videoWidth || !video.videoHeight) return;
+        function captureAndPredict() {
+            if (isCapturing) return;
             
-            // Narysuj bieżącą klatkę na canvas
+            isCapturing = true;
+            captureBtn.disabled = true;
+            updateStatus('Capturing and predicting...', 'warning');
+            
+            // Capture frame from video
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
             
-            // Konwertuj do base64
+            // Convert to base64
             const imageData = canvas.toDataURL('image/jpeg', 0.8);
             
-            // Pokaż loading
-            loading.style.display = 'block';
-            
+            // Send to server
+            sendPredictionRequest(imageData);
+        }
+
+        async function sendPredictionRequest(imageData) {
             try {
                 const response = await fetch('/predict', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ image: imageData })
+                    body: JSON.stringify({
+                        image: imageData,
+                        use_roi: useRoiCheckbox.checked
+                    })
                 });
                 
-                const result = await response.json();
+                const data = await response.json();
                 
                 if (response.ok) {
-                    updateResults(result);
+                    displayResults(data);
+                    updateStatus('Prediction completed!', 'success');
                 } else {
-                    console.error('Błąd predykcji:', result.error);
-                }
-            } catch (error) {
-                console.error('Błąd komunikacji z serwerem:', error);
-            } finally {
-                loading.style.display = 'none';
-            }
-        }
-
-        // Aktualizuj wyniki
-        function updateResults(result) {
-            predictedLetter.textContent = result.predicted_letter;
-            confidence.textContent = `Pewność: ${(result.confidence * 100).toFixed(1)}%`;
-            
-            // Debug info
-            if (debugMode) {
-                const debugText = `
-                    Timestamp: ${new Date().toLocaleTimeString()}
-                    Predicted: ${result.predicted_letter} (${(result.confidence * 100).toFixed(1)}%)
-                    All predictions: ${result.all_predictions.map((p, i) => `${CLASS_NAMES[i]}: ${(p * 100).toFixed(1)}%`).join(', ')}
-                `;
-                debugInfo.textContent = debugText;
-            }
-            
-            // Aktualizuj top predykcje
-            topPredictions.innerHTML = '';
-            result.top_predictions.forEach(pred => {
-                const item = document.createElement('div');
-                item.className = 'prediction-item';
-                item.innerHTML = `
-                    <span class="prediction-letter">${pred.letter}</span>
-                    <span class="prediction-confidence">${(pred.confidence * 100).toFixed(1)}%</span>
-                `;
-                topPredictions.appendChild(item);
-            });
-            
-            // Stabilność predykcji - dodaj literę tylko jeśli jest stabilna
-            if (result.predicted_letter !== '?' && result.confidence > 0.7) {
-                if (lastPrediction === result.predicted_letter) {
-                    stabilityCounter++;
-                } else {
-                    stabilityCounter = 1;
-                    lastPrediction = result.predicted_letter;
+                    throw new Error(data.error || 'Unknown error');
                 }
                 
-                // Dodaj literę tylko po osiągnięciu stabilności
-                if (stabilityCounter >= STABILITY_THRESHOLD) {
-                    addToSentence(result.predicted_letter);
-                    stabilityCounter = 0; // Reset licznika po dodaniu litery
+            } catch (error) {
+                console.error('Prediction error:', error);
+                updateStatus('Prediction error: ' + error.message, 'error');
+            } finally {
+                isCapturing = false;
+                captureBtn.disabled = false;
+            }
+        }
+
+        function displayResults(data) {
+            resultsDiv.style.display = 'block';
+            
+            // Main prediction
+            predictionDiv.textContent = data.predicted_letter;
+            predictionDiv.style.color = data.confidence > 0.6 ? '#4CAF50' : 
+                                       data.confidence > 0.3 ? '#ff9800' : '#f44336';
+            
+            // Confidence
+            confidenceDiv.textContent = `Confidence: ${(data.confidence * 100).toFixed(1)}%`;
+            
+            // Top predictions
+            topPredictionsDiv.innerHTML = '';
+            if (data.top_predictions && data.top_predictions.length > 0) {
+                data.top_predictions.forEach(pred => {
+                    const item = document.createElement('div');
+                    item.className = 'prediction-item';
+                    item.innerHTML = `
+                        <h3>${pred.letter}</h3>
+                        <p>${(pred.confidence * 100).toFixed(1)}%</p>
+                    `;
+                    topPredictionsDiv.appendChild(item);
+                });
+            }
+            
+            // Debug info
+            if (showDebugCheckbox.checked) {
+                debugContentDiv.textContent = JSON.stringify(data, null, 2);
+            }
+        }
+
+        function hideResults() {
+            resultsDiv.style.display = 'none';
+        }
+
+        function updateStatus(message, type = '') {
+            statusDiv.textContent = message;
+            statusDiv.className = `status ${type}`;
+        }
+
+        function toggleAutoPredict() {
+            if (autoPredictCheckbox.checked) {
+                if (stream && !isCapturing) {
+                    autoPredictInterval = setInterval(() => {
+                        if (!isCapturing) {
+                            captureAndPredict();
+                        }
+                    }, 2000);
+                    updateStatus('Auto-predict enabled (every 2s)', 'success');
                 }
             } else {
-                stabilityCounter = 0;
-                lastPrediction = null;
+                if (autoPredictInterval) {
+                    clearInterval(autoPredictInterval);
+                    autoPredictInterval = null;
+                    updateStatus('Auto-predict disabled', 'warning');
+                }
             }
         }
 
-        // Dodaj do zdania
-        function addToSentence(letter) {
-            if (letter === 'SPACE') {
-                sentence += ' ';
-            } else {
-                sentence += letter;
-            }
-            updateSentenceDisplay();
+        function toggleDebugInfo() {
+            debugInfoDiv.style.display = showDebugCheckbox.checked ? 'block' : 'none';
         }
 
-        // Aktualizuj wyświetlanie zdania
-        function updateSentenceDisplay() {
-            sentenceText.textContent = sentence || 'Rozpocznij pokazywanie znaków...';
-        }
-
-        // Wyczyść zdanie
-        clearBtn.addEventListener('click', () => {
-            sentence = '';
-            updateSentenceDisplay();
+        // Initialize
+        window.addEventListener('load', () => {
+            updateStatus('Application loaded. Click "Start Camera" to begin.', 'success');
         });
 
-        // Inicjalizacja
-        updateSentenceDisplay();
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+            }
+        });
     </script>
 </body>
 </html>
