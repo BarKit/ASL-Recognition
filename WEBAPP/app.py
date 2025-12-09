@@ -10,7 +10,7 @@ import os
 app = Flask(__name__)
 
 # Konfiguracja
-MODEL_PATH = 'ASL-Recognition/WEBAPP/asl_model_converted.h5'
+MODEL_PATH = 'WEBAPP/asl_model_converted.h5'
 IMAGE_SIZE = (64, 64)
 
 # Mapowanie klas (dostosuj do swojego modelu)
